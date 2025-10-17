@@ -243,7 +243,6 @@
 
 
     <script>
-        // ... (previous JS code remains the same up to here) ...
         let scenarioCount = 0;
         const cashflows = {};
         let activeScenarioId = null;
@@ -409,7 +408,8 @@
                     document.getElementById('annuity-frequency').value = item.frequency;
                     document.getElementById('annuity-type').value = item.annuityType;
                 } else if (item.type === 'gradient') {
-                    document.getElementById('gradient-amount').value = item.amount;
+                    document.getElementById('gradient-base').value = item.base;
+                    document.getElementById('gradient-increment').value = item.increment;
                     document.getElementById('gradient-n').value = item.n;
                     document.getElementById('gradient-start').value = item.startPeriod;
                 } else if (item.type === 'perpetuity') {
@@ -455,7 +455,7 @@
                 } else if (type === 'annuity') {
                     item.amount = parseFloat(document.getElementById('annuity-amount').value);
                     item.n = parseInt(document.getElementById('annuity-n').value);
-                    item.startPeriod = parseFloat(document.getElementById('annuity-start').value);
+                    item.startPeriod = parseFloat(document.getElementById('annuity-start').value) || 0;
                     item.annuityType = document.getElementById('annuity-type').value;
                     item.frequency = parseFloat(document.getElementById('annuity-frequency').value) || 1;
                     if(isNaN(item.amount) || isNaN(item.n) || isNaN(item.startPeriod) || item.frequency <= 0) throw new Error('Invalid input');
@@ -463,7 +463,7 @@
                     if (item.annuityType === 'due') {
                         description = `Annuity Due: ${item.amount} for ${item.n} pds, every ${item.frequency} pds, starts at ${item.startPeriod}`;
                     } else {
-                        description = `Ordinary Annuity: ${item.amount} for ${item.n} pds, every ${item.frequency} pds, 1st pmt at ${item.startPeriod + item.frequency}`;
+                        description = `Ordinary Annuity: ${item.amount} for ${item.n} pds, every ${item.frequency} pds, starts at ${item.startPeriod}`;
                     }
 
                 } else if (type === 'gradient') {
@@ -514,7 +514,7 @@
                 // Recreate description
                 let description = '';
                 if (item.type === 'single') description = `Single: ${item.amount} at period ${item.period}`;
-                else if (item.type === 'annuity') description = `${item.annuityType === 'due' ? 'Annuity Due' : 'Ord. Annuity'}: ${item.amount} for ${item.n} pds, every ${item.frequency} pds`;
+                else if (item.type === 'annuity') description = `${item.annuityType === 'due' ? 'Annuity Due' : 'Ord. Annuity'}: ${item.amount} for ${item.n} pds, starts at ${item.startPeriod}`;
                 else if (item.type === 'gradient') description = `Gradient: Base ${item.base}, Incr ${item.increment} for ${item.n} pds, every ${item.frequency} pds`;
                 else if (item.type === 'perpetuity') description = `Perpetuity: ${item.amount} every ${item.frequency} pds, starts at ${item.startPeriod}`;
 
@@ -553,7 +553,6 @@
             const n_total = parseInt(scenarioCard.querySelector('.periods').value);
 
             if (isNaN(i) || isNaN(n_total)) {
-                // Silently return, as user might be in the middle of typing.
                 return;
             }
 
@@ -565,31 +564,50 @@
                 let p_val = 0;
                 
                 // P/F Factor
-                const pf_factor = (i, n) => Math.pow(1 + i, -n);
+                const pf_factor = (rate, n) => Math.pow(1 + rate, -n);
                 // P/A Factor
-                const pa_factor = (i, n) => (Math.pow(1 + i, n) - 1) / (i * Math.pow(1 + i, n));
+                const pa_factor = (rate, n) => (n === 0 || rate === 0) ? n : (Math.pow(1 + rate, n) - 1) / (rate * Math.pow(1 + rate, n));
+                // P/G Factor
+                const pg_factor = (rate, n) => (rate === 0) ? (n * (n - 1)) / 2 : (1 / rate) * (pa_factor(rate, n) - n * pf_factor(rate, n));
                 
                 if (type === 'single') {
                     p_val = amount * pf_factor(i, item.period);
                 } else if (type === 'annuity') {
-                    // Robust method: Sum the PV of each individual payment
-                    for (let j = 0; j < item.n; j++) {
-                        const currentPeriod = item.startPeriod + (j * item.frequency);
-                        p_val += amount * pf_factor(i, currentPeriod);
+                     if (item.frequency === 1) {
+                        const p_at_start = amount * pa_factor(i, item.n);
+                        // P/A factor gives value at k-1 for a series starting at k.
+                        let p_at_k_minus_1 = p_at_start;
+                        p_val = p_at_k_minus_1 * pf_factor(i, item.startPeriod - 1); // Correctly discount from k-1
+                        if (item.annuityType === 'due') {
+                            // Annuity due value is one period forward from ordinary.
+                            p_val = p_val * (1 + i);
+                        }
+                    } else { 
+                        for (let j = 0; j < item.n; j++) {
+                            const currentPeriod = item.startPeriod + (j * item.frequency);
+                            p_val += amount * pf_factor(i, currentPeriod);
+                        }
                     }
                 } else if (type === 'gradient') {
-                    // Most robust way is to sum the PV of each individual payment
-                    for (let j = 0; j < item.n; j++) {
-                        const currentPeriod = item.startPeriod + (j * item.frequency);
-                        const currentAmount = item.base + (j * item.increment);
-                        p_val += currentAmount * pf_factor(i, currentPeriod);
+                    if (item.frequency === 1) {
+                        const p_base = item.base * pa_factor(i, item.n);
+                        const p_gradient = item.increment * pg_factor(i, item.n);
+                        // The standard P/A and P/G factors assume the first payment is at period 1.
+                        // This gives a value at t=0 if the series starts at t=1.
+                        // If the series is deferred (starts at k > 1), we discount the whole value back k-1 periods.
+                        const ref_period = item.startPeriod - 1;
+                        p_val = (p_base + p_gradient) * pf_factor(i, ref_period);
+
+                    } else { 
+                        for (let j = 0; j < item.n; j++) {
+                            const currentPeriod = item.startPeriod + (j * item.frequency);
+                            const currentAmount = item.base + (j * item.increment);
+                            p_val += currentAmount * pf_factor(i, currentPeriod);
+                        }
                     }
                 } else if (type === 'perpetuity') {
-                    // Robust method: Sum the PV of each individual payment up to the total number of periods
-                    for (let j = 0; (item.startPeriod + (j * item.frequency)) <= n_total; j++) {
-                        const currentPeriod = item.startPeriod + (j * item.frequency);
-                        p_val += amount * pf_factor(i, currentPeriod);
-                    }
+                    const p_at_start = amount / i;
+                    p_val = p_at_start * pf_factor(i, item.startPeriod - 1); // Correctly discount from k-1
                 }
                 presentWorth += p_val;
             });
@@ -607,7 +625,11 @@
             const calculatedScenarios = Object.keys(cashflows).filter(id => document.getElementById(`result-row-${id}`));
             if (calculatedScenarios.length === 0) return;
 
-            const max_n = Math.max(...calculatedScenarios.map(id => parseInt(document.getElementById(`scenario-${id}`).querySelector('.periods').value)));
+            const max_n = Math.max(...calculatedScenarios.map(id => {
+                const val = parseInt(document.getElementById(`scenario-${id}`).querySelector('.periods').value);
+                return isNaN(val) ? 0 : val;
+            }));
+
 
             calculatedScenarios.forEach(id => drawDiagram(id, cashflows[id], max_n));
         }
@@ -647,19 +669,19 @@
 
             const containerWidth = diagramsContainer.getBoundingClientRect().width;
             const margin = {top: 20, right: 20, bottom: 40, left: 40},
-                width = containerWidth - margin.left - margin.right,
+                width = Math.max(containerWidth, n_total * 50) - margin.left - margin.right, // Ensure minimum width
                 height = 200;
 
             const svg = d3.select(diagramDiv)
               .append("svg")
-                .attr("data-n-total", n_total) // Store n_total for the ruler
-                .attr("width", "100%") // Make SVG responsive
+                .attr("data-n-total", n_total)
+                .attr("width", width + margin.left + margin.right)
                 .attr("height", height + margin.top + margin.bottom)
               .append("g")
                 .attr("transform", `translate(${margin.left},${margin.top})`);
             
             const x = d3.scaleLinear()
-                .domain([0, n_total])
+                .domain([-0.5, n_total + 0.5])
                 .range([ 0, width ]);
 
             // --- Vertical Scaling for Arrows ---
@@ -679,7 +701,7 @@
             const maxAbsAmount = d3.max(allFlows, d => Math.abs(d)) || 1;
             const yScale = d3.scaleLinear()
                 .domain([0, maxAbsAmount])
-                .range([0, height / 2 - 20]); // Max arrow height is half the diagram height minus some padding
+                .range([0, height / 2 - 20]); 
 
             svg.append("g")
                 .attr("transform", `translate(0, ${height/2})`)
@@ -694,8 +716,10 @@
                     drawArrow(svg, x(item.period), height / 2, amount, yScale);
                 } else if (type === 'annuity') {
                     for (let k = 0; k < item.n; k++) {
-                        const freq = item.frequency || 1;
-                        const period = item.annuityType === 'due' ? item.startPeriod + (k * freq) : item.startPeriod + ((k + 1) * freq);
+                        let period = item.startPeriod + (k * item.frequency);
+                        if (item.annuityType === 'due') {
+                            period = item.startPeriod + (k * item.frequency);
+                        }
                         if(period <= n_total) drawArrow(svg, x(period), height/2, amount, yScale);
                     }
                 } else if (type === 'gradient') {
@@ -705,7 +729,7 @@
                         if(period <= n_total) drawArrow(svg, x(period), height/2, currentAmount, yScale);
                     }
                 } else if (type === 'perpetuity') {
-                    for(let n = item.startPeriod; n <= n_total + 1e-9; n += (item.frequency || 1)) { // Add tolerance for float issues
+                    for(let n = item.startPeriod; n <= n_total + 1e-9; n += (item.frequency || 1)) { 
                         drawArrow(svg, x(n), height/2, amount, yScale);
                     }
                     svg.append("text").attr("x", x(n_total) + 15).attr("y", height/2 + 5).text("...∞").style("font-size", "14px");
@@ -735,7 +759,9 @@
 
         // --- COMPUTATION MODAL LOGIC ---
         function showComputation(scenarioId) {
-            const scenarioCard = document.getElementById(`scenario-${scenarioId}`);
+            // This function remains largely the same but we will call the centralized calculation logic
+            // to ensure consistency.
+             const scenarioCard = document.getElementById(`scenario-${scenarioId}`);
             if (!scenarioCard) return;
 
             const scenarioName = scenarioCard.querySelector('.scenario-name').value;
@@ -747,51 +773,18 @@
                 alert("Please set a valid interest rate and number of periods for this scenario.");
                 return;
             }
-
+            
             let computationHtml = `<h3>${scenarioName}</h3>`;
             computationHtml += `<p><strong>Interest Rate (i):</strong> ${(i * 100).toFixed(4)}% | <strong>Total Periods (n):</strong> ${n_total}</p>`;
             computationHtml += `<h4>Present Worth (P) Calculation:</h4><ul class="list-disc pl-5">`;
 
             let totalPresentWorth = 0;
-
-            const pf_factor = (i, n) => Math.pow(1 + i, -n);
-
+            
             items.forEach((item, index) => {
-                let p_val = 0;
-
-                if (item.type === 'single') {
-                    p_val = item.amount * pf_factor(i, item.period);
-                } else if (item.type === 'annuity') {
-                    for (let j = 0; j < item.n; j++) {
-                        const currentPeriod = item.startPeriod + (j * item.frequency);
-                        const currentAmount = item.amount;
-                        p_val += currentAmount * pf_factor(i, currentPeriod);
-                    }
-                } else if (item.type === 'gradient') {
-                    for (let j = 0; j < item.n; j++) {
-                        const currentPeriod = item.startPeriod + (j * item.frequency);
-                        const currentAmount = item.base + (j * item.increment);
-                        p_val += currentAmount * pf_factor(i, currentPeriod);
-                    }
-                } else if (item.type === 'perpetuity') {
-                    for (let j = 0; (item.startPeriod + (j * item.frequency)) <= n_total; j++) {
-                        const currentPeriod = item.startPeriod + (j * item.frequency);
-                        const currentAmount = item.amount;
-                        p_val += currentAmount * pf_factor(i, currentPeriod);
-                    }
-                }
-
-                // Simplified output for debugging
-                let description = '';
-                if (item.type === 'single') description = `Single: ${item.amount} at period ${item.period}`;
-                else if (item.type === 'annuity') description = `Annuity: ${item.amount} for ${item.n} pds, starts at ${item.startPeriod}`;
-                else if (item.type === 'gradient') description = `Gradient: Base ${item.base}, Incr ${item.increment} for ${item.n} pds`;
-                else if (item.type === 'perpetuity') description = `Perpetuity: ${item.amount} every ${item.frequency} pds, starts at ${item.startPeriod}`;
-
+                const { p_val, description } = calculatePresentValueOfItem(item, i, n_total);
                 let stepHtml = `<li>Item ${index + 1} (${description}): <strong>PV = ${p_val.toFixed(2)}</strong></li>`;
-
                 totalPresentWorth += p_val;
-                computationHtml += `${stepHtml}</li>`;
+                computationHtml += `${stepHtml}`;
             });
 
             const totalFutureWorth = totalPresentWorth * Math.pow(1 + i, n_total);
@@ -803,6 +796,53 @@
             document.getElementById('computation-details').innerHTML = computationHtml;
             openModal('computation-modal');
         }
+
+        function calculatePresentValueOfItem(item, i, n_total) {
+            let p_val = 0;
+            let description = '';
+            const { type, amount } = item;
+
+            const pf_factor = (rate, n) => Math.pow(1 + rate, -n);
+            const pa_factor = (rate, n) => (n === 0 || rate === 0) ? n : (Math.pow(1 + rate, n) - 1) / (rate * Math.pow(1 + rate, n));
+            const pg_factor = (rate, n) => (rate === 0) ? (n * (n - 1)) / 2 : (1 / rate) * (pa_factor(rate, n) - n * pf_factor(rate, n));
+            
+            if (type === 'single') {
+                p_val = amount * pf_factor(i, item.period);
+                description = `Single: ${item.amount} at period ${item.period}`;
+            } else if (type === 'annuity') {
+                description = `Annuity: ${item.amount} for ${item.n} pds, starts at ${item.startPeriod}`;
+                if (item.frequency === 1) {
+                    const p_at_start = amount * pa_factor(i, item.n);
+                    // P/A factor gives value at k-1 for a series starting at k.
+                    let p_at_k_minus_1 = p_at_start; // This is the value at period (startPeriod - 1)
+                    p_val = p_at_k_minus_1 * pf_factor(i, item.startPeriod - 1); // Discount it back to period 0
+                    if (item.annuityType === 'due') {
+                        p_val = p_val * (1 + i);
+                    }
+                } else {
+                    for (let j = 0; j < item.n; j++) { p_val += amount * pf_factor(i, item.startPeriod + (j * item.frequency)); }
+                }
+            } else if (type === 'gradient') {
+                description = `Gradient: Base ${item.base}, Incr ${item.increment} for ${item.n} pds`;
+                if (item.frequency === 1) {
+                    const p_base = item.base * pa_factor(i, item.n);
+                    const p_gradient = item.increment * pg_factor(i, item.n);
+                    // Standard factors give a value at t=0 for a series starting at t=1.
+                    // If the series is deferred (starts at k > 1), we discount the whole value back k-1 periods.
+                    const ref_period = item.startPeriod - 1; // Correctly discount from k-1
+                    p_val = (p_base + p_gradient) * pf_factor(i, ref_period);
+
+                } else {
+                    for (let j = 0; j < item.n; j++) { p_val += (item.base + (j * item.increment)) * pf_factor(i, item.startPeriod + (j * item.frequency)); }
+                }
+            } else if (type === 'perpetuity') {
+                 description = `Perpetuity: ${item.amount} every ${item.frequency} pds, starts at ${item.startPeriod}`;
+                 const p_at_start_minus_1 = amount / i;
+                 p_val = p_at_start_minus_1 * pf_factor(i, item.startPeriod - 1); // Correctly discount from k-1
+            }
+            return { p_val, description };
+        }
+
 
         // --- RULER LOGIC ---
         const diagramsContainerEl = document.getElementById('diagrams-container');
@@ -819,6 +859,56 @@
             ruler.classList.remove('hidden');
         });
         diagramsContainerEl.addEventListener('mouseleave', () => ruler.classList.add('hidden'));
+
+        // --- UNIT TESTING ---
+        function runUnitTests() {
+            const testResultsEl = document.getElementById('test-results');
+            testResultsEl.textContent = 'Running tests...';
+
+            const tests = [
+                { name: "Single Payment", i: 10, n: 10, items: [{type: 'single', amount: 1000, period: 5}], expected: 620.92 },
+                { name: "Ordinary Annuity", i: 8, n: 10, items: [{type: 'annuity', amount: 100, n: 5, startPeriod: 1, frequency: 1, annuityType: 'ordinary'}], expected: 399.27 },
+                { name: "Annuity Due", i: 8, n: 10, items: [{type: 'annuity', amount: 100, n: 5, startPeriod: 1, frequency: 1, annuityType: 'due'}], expected: 431.21 },
+                { name: "Deferred Annuity", i: 12, n: 20, items: [{type: 'annuity', amount: 500, n: 6, startPeriod: 5, frequency: 1, annuityType: 'ordinary'}], expected: 1306.44 }, // Corrected in previous step
+                { name: "Gradient", i: 10, n: 10, items: [{type: 'gradient', base: 100, increment: 50, n: 5, startPeriod: 1, frequency: 1}], expected: 722.17 },
+                { name: "Perpetuity", i: 9.43, n: 51, items: [
+                    {type: 'single', amount: 20, period: 0}, 
+                    {type: 'perpetuity', amount: 0.25, startPeriod: 1, frequency: 1}
+                ], expected: 22.65 },
+                { name: "Complex Scenario", i: 5, n: 20, items: [
+                    {type: 'single', amount: -1000, period: 0},
+                    {type: 'annuity', amount: 100, n: 10, startPeriod: 1, frequency: 1, annuityType: 'ordinary'},
+                    {type: 'gradient', base: 0, increment: 20, n: 5, startPeriod: 11, frequency: 1},
+                    {type: 'single', amount: 500, period: 20}
+                ], expected: 61.75 }
+            ];
+
+            const failures = [];
+            const tolerance = 0.05; 
+
+            tests.forEach(test => {
+                let presentWorth = 0;
+                const i_rate = test.i / 100;
+
+                test.items.forEach(item => {
+                    // Use the centralized, corrected calculation logic
+                    const { p_val } = calculatePresentValueOfItem(item, i_rate, test.n);
+                    presentWorth += p_val;
+                });
+
+                if (Math.abs(presentWorth - test.expected) > tolerance) {
+                    failures.push(`FAIL: ${test.name}. Expected ${test.expected.toFixed(2)}, but got ${presentWorth.toFixed(2)}. Details: ${JSON.stringify(test)}`);
+                }
+            });
+
+            if (failures.length === 0) {
+                testResultsEl.textContent = 'All tests passed!';
+                testResultsEl.className = 'text-xs mt-1 text-green-600 font-semibold';
+            } else {
+                testResultsEl.innerHTML = '<strong>Some tests failed:</strong><br>' + failures.join('<br>');
+                testResultsEl.className = 'text-xs mt-1 text-red-600 text-left';
+            }
+        }
     </script>
 </body>
 </html>
