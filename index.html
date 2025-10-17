@@ -43,8 +43,8 @@
             <!-- Scenario Card Template -->
             <div id="scenario-template" class="cashflow-card bg-white p-6 rounded-2xl shadow-md border border-gray-200 hidden">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-gray-800">Scenario <span class="scenario-number">1</span></h2>
-                    <button onclick="removeScenario(this)" class="text-red-500 hover:text-red-700 font-semibold text-sm">Remove</button>
+                    <input type="text" class="scenario-name text-xl font-bold text-gray-800 bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded-md p-1 -m-1 w-full mr-4" value="Scenario 1">
+                    <button onclick="removeScenario(this)" class="text-red-500 hover:text-red-700 font-semibold text-sm flex-shrink-0">Remove</button>
                 </div>
 
                 <div class="space-y-4">
@@ -236,6 +236,7 @@
             for (const id in cashflows) {
                 const scenarioCard = document.getElementById(`scenario-${id}`);
                 if (scenarioCard) {
+                    const name = scenarioCard.querySelector('.scenario-name').value;
                     scenariosToSave[id] = {
                         interestRate: scenarioCard.querySelector('.interest-rate').value,
                         periods: scenarioCard.querySelector('.periods').value,
@@ -270,11 +271,13 @@
             const template = document.getElementById('scenario-template');
             const newScenario = template.cloneNode(true);
             newScenario.id = `scenario-${scenarioCount}`;
+            const nameInput = newScenario.querySelector('.scenario-name');
             newScenario.classList.remove('hidden');
-            newScenario.querySelector('.scenario-number').textContent = scenarioCount;
+            nameInput.value = `Scenario ${scenarioCount}`;
             document.getElementById('scenarios-container').appendChild(newScenario);
             
             // Add event listeners for automatic recalculation
+            nameInput.addEventListener('input', () => calculateById(scenarioCount));
             newScenario.querySelector('.interest-rate').addEventListener('input', () => calculateById(scenarioCount));
             newScenario.querySelector('.periods').addEventListener('input', () => calculateById(scenarioCount));
             newScenario.querySelector('.cashflow-items').addEventListener('click', handleItemAction);
@@ -285,6 +288,7 @@
             cashflows[scenarioCount] = [];
 
             if (savedData) {
+                nameInput.value = savedData.name || `Scenario ${scenarioCount}`;
                 newScenario.querySelector('.interest-rate').value = savedData.interestRate;
                 newScenario.querySelector('.periods').value = savedData.periods;
                 cashflows[scenarioCount] = savedData.items || [];
@@ -597,6 +601,8 @@
         }
 
         function displayResults(scenarioId, pw, fw) {
+            const scenarioCard = document.getElementById(`scenario-${scenarioId}`);
+            const scenarioName = scenarioCard.querySelector('.scenario-name').value || `Scenario ${scenarioId}`;
             const tableBody = document.getElementById('results-table-body');
             let resultRow = document.getElementById(`result-row-${scenarioId}`);
             
@@ -607,7 +613,7 @@
             }
 
             resultRow.innerHTML = `
-                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Scenario ${scenarioId}</td>
+                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${scenarioName}</td>
                 <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">${pw.toFixed(2)}</td>
                 <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fw.toFixed(2)}</td>
             `;
@@ -615,6 +621,7 @@
 
         function drawDiagram(scenarioId, data, n_total) {
             let diagramsContainer = document.getElementById('diagrams-container');
+            const scenarioName = document.getElementById(`scenario-${scenarioId}`).querySelector('.scenario-name').value;
             let diagramDiv = document.getElementById(`diagram-${scenarioId}`);
             
             if (!diagramDiv) {
@@ -694,7 +701,7 @@
 
             const title = document.createElement('h3');
             title.className = "text-lg font-bold text-gray-800 mt-2";
-            title.textContent = `Scenario ${scenarioId}`;
+            title.textContent = scenarioName;
             diagramDiv.appendChild(title);
         }
 
