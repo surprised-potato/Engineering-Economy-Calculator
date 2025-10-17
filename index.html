@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineering Economy Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .cashflow-card {
+            transition: all 0.3s ease;
+        }
+        .cashflow-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .diagram-container {
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        .modal-active {
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Engineering Economy Calculator</h1>
+            <p class="text-gray-600 mt-2">Visualize and compare cash flow diagrams to make informed decisions.</p>
+        </header>
+
+        <div id="scenarios-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+            <!-- Scenario Card Template -->
+            <div id="scenario-template" class="cashflow-card bg-white p-6 rounded-2xl shadow-md border border-gray-200 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Scenario <span class="scenario-number">1</span></h2>
+                    <button onclick="removeScenario(this)" class="text-red-500 hover:text-red-700 font-semibold text-sm">Remove</button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Effective Interest Rate (i) in %</label>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <input type="number" class="interest-rate w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., 5.12">
+                            <button onclick="openInterestModal(this)" class="p-2 bg-gray-200 hover:bg-gray-300 rounded-md" title="Calculate Effective Rate">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0L8 7.48a1 1 0 01-1.41 1.41L2.05 10.4a1.73 1.73 0 000 2.4l4.54 1.51a1 1 0 01.52 1.94l-1.06 4.25c-.38 1.56 2.6 1.56 2.98 0l1.06-4.25a1 1 0 011.94-.52l1.51 4.54a1.73 1.73 0 002.4 0l1.51-4.54a1 1 0 011.94.52l1.06 4.25c.38 1.56 2.6 1.56 2.98 0l-1.06-4.25a1 1 0 01.52-1.94l4.54-1.51a1.73 1.73 0 000-2.4l-4.54-1.51a1 1 0 01-1.94-.52L11.49 3.17zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                     <div>
+                        <label class="block text-sm font-medium text-gray-700">Total Number of Periods (n)</label>
+                        <input type="number" class="periods w-full mt-1 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., 10">
+                    </div>
+                </div>
+
+                <div class="mt-6 text-center">
+                    <button onclick="openCashflowModal(this)" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Add Cash Flow Item</button>
+                </div>
+                
+                <div class="mt-6">
+                     <h3 class="text-lg font-semibold mb-2 text-gray-800">Cash Flow Items</h3>
+                     <ul class="cashflow-items list-disc pl-5 space-y-1 text-gray-700"></ul>
+                </div>
+            </div>
+            <!-- End Scenario Card Template -->
+        </div>
+        
+        <div class="text-center mb-8">
+            <button id="add-scenario-btn" class="bg-blue-500 text-white py-2 px-6 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                Add Scenario
+            </button>
+        </div>
+
+        <!-- New Results Summary Table -->
+        <div id="results-summary" class="bg-white p-6 rounded-2xl shadow-xl border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-center mb-4 text-gray-800">Results Summary</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scenario</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present Worth (P)</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Future Worth (F)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="diagrams-section" class="bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Cash Flow Diagrams</h2>
+
+            <div class="diagram-container pb-4 relative mt-4">
+                <div id="diagrams-container" class="flex flex-col space-y-8"></div>
+                <!-- Vertical Ruler -->
+                <div id="ruler" class="absolute top-0 bottom-0 w-0.5 bg-blue-500 bg-opacity-75 pointer-events-none hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-100 py-6 mt-12">
+        <div class="container mx-auto text-center text-gray-600 text-sm">
+            &copy; 2023 Daniel Pollentes. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Modals -->
+    <!-- Interest Rate Modal -->
+    <div id="interest-rate-modal" class="modal pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center opacity-0">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded-lg shadow-lg z-50 overflow-y-auto">
+            <div class="modal-content py-4 text-left px-6">
+                <div class="flex justify-between items-center pb-3">
+                    <p class="text-2xl font-bold">Effective Rate Calculator</p>
+                    <button onclick="closeModal('interest-rate-modal')" class="modal-close cursor-pointer z-50">
+                        <svg class="fill-current text-black" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M18 1.5L16.5 0 9 7.5 1.5 0 0 1.5 7.5 9 0 16.5 1.5 18 9 10.5 16.5 18 18 16.5 10.5 9z"/></svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Nominal Interest Rate (r) in %</label>
+                        <input type="number" id="nominal-rate" class="w-full mt-1 p-2 border border-gray-300 rounded-md" placeholder="e.g., 5">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Compounding Periods per Year (m)</label>
+                        <input type="number" id="compounding-periods" class="w-full mt-1 p-2 border border-gray-300 rounded-md" placeholder="e.g., 12 for monthly">
+                    </div>
+                    <div>
+                        <button onclick="calculateEffectiveRate()" class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600">Calculate</button>
+                    </div>
+                    <div id="effective-rate-result" class="text-center font-semibold text-lg"></div>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button onclick="useEffectiveRate()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600">Use This Rate</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Cashflow Modal -->
+    <div id="cashflow-modal" class="modal pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center opacity-0">
+         <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded-lg shadow-lg z-50 overflow-y-auto">
+             <div class="modal-content py-4 text-left px-6">
+                 <div class="flex justify-between items-center pb-3">
+                    <p class="text-2xl font-bold">Add Cash Flow Item</p>
+                    <button onclick="closeModal('cashflow-modal')" class="modal-close cursor-pointer z-50">
+                        <svg class="fill-current text-black" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M18 1.5L16.5 0 9 7.5 1.5 0 0 1.5 7.5 9 0 16.5 1.5 18 9 10.5 16.5 18 18 16.5 10.5 9z"/></svg>
+                    </button>
+                </div>
+                
+                <!-- Form Content -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Cash Flow Type</label>
+                        <select id="modal-cashflow-type" onchange="switchCashflowForm()" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                            <option value="single">Single Payment (P/F)</option>
+                            <option value="annuity">Annuity (A)</option>
+                            <option value="gradient">Gradient (G)</option>
+                            <option value="perpetuity">Perpetuity (A)</option>
+                        </select>
+                    </div>
+
+                    <!-- Single Payment Form -->
+                    <div id="form-single" class="space-y-4">
+                        <input type="number" id="single-amount" placeholder="Amount" class="w-full p-2 border border-gray-300 rounded-md">
+                        <input type="number" id="single-period" placeholder="Period (n)" class="w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+
+                    <!-- Annuity Form -->
+                    <div id="form-annuity" class="hidden space-y-4">
+                         <input type="number" id="annuity-amount" placeholder="Amount (A)" class="w-full p-2 border border-gray-300 rounded-md">
+                         <input type="number" id="annuity-n" placeholder="Number of Payments (n)" class="w-full p-2 border border-gray-300 rounded-md">
+                         <input type="number" step="any" id="annuity-start" placeholder="First Payment Period" class="w-full p-2 border border-gray-300 rounded-md">
+                         <input type="number" step="any" id="annuity-frequency" placeholder="Payment every X periods" class="w-full p-2 border border-gray-300 rounded-md" value="1">
+                         <select id="annuity-type" class="w-full p-2 border border-gray-300 rounded-md">
+                             <option value="ordinary">Ordinary Annuity</option>
+                             <option value="due">Annuity Due</option>
+                         </select>
+                    </div>
+                    
+                    <!-- Gradient Form -->
+                    <div id="form-gradient" class="hidden space-y-4">
+                        <input type="number" id="gradient-base" placeholder="Base Amount (A1)" class="w-full p-2 border border-gray-300 rounded-md">
+                        <input type="number" id="gradient-increment" placeholder="Increment (G)" class="w-full p-2 border border-gray-300 rounded-md">
+                        <input type="number" id="gradient-n" placeholder="Number of Periods (n)" class="w-full p-2 border border-gray-300 rounded-md">
+                        <input type="number" step="any" id="gradient-start" placeholder="First Payment Period" class="w-full p-2 border border-gray-300 rounded-md">
+                        <input type="number" step="any" id="gradient-frequency" placeholder="Payment every X periods" class="w-full p-2 border border-gray-300 rounded-md" value="1">
+                    </div>
+
+                    <!-- Perpetuity Form -->
+                    <div id="form-perpetuity" class="hidden space-y-4">
+                         <input type="number" id="perpetuity-amount" placeholder="Amount (A)" class="w-full p-2 border border-gray-300 rounded-md">
+                         <input type="number" step="any" id="perpetuity-start" placeholder="First Payment Period" class="w-full p-2 border border-gray-300 rounded-md">
+                         <input type="number" step="any" id="perpetuity-frequency" placeholder="Payment every X periods" class="w-full p-2 border border-gray-300 rounded-md" value="1">
+                    </div>
+
+                </div>
+
+                 <div class="flex justify-end pt-4">
+                    <button id="save-cashflow-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700">Add Item</button>
+                </div>
+             </div>
+        </div>
+    </div>
+
+    <script>
+        // ... (previous JS code remains the same up to here) ...
+        let scenarioCount = 0;
+        const cashflows = {};
+        let activeScenarioId = null;
+        let calculatedEffectiveRate = null;
+        let editingItemIndex = null; 
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadState();
+        });
+
+        // --- LOCAL STORAGE PERSISTENCE ---
+        function saveState() {
+            const scenariosToSave = {};
+            for (const id in cashflows) {
+                const scenarioCard = document.getElementById(`scenario-${id}`);
+                if (scenarioCard) {
+                    scenariosToSave[id] = {
+                        interestRate: scenarioCard.querySelector('.interest-rate').value,
+                        periods: scenarioCard.querySelector('.periods').value,
+                        items: cashflows[id]
+                    };
+                }
+            }
+            const state = { scenarioCount, scenarios: scenariosToSave };
+            localStorage.setItem('engEconCalculatorState', JSON.stringify(state));
+        }
+
+        function loadState() {
+            const savedState = localStorage.getItem('engEconCalculatorState');
+            if (savedState) {
+                const state = JSON.parse(savedState);
+                scenarioCount = 0; // Reset before recreating
+                Object.keys(state.scenarios).forEach(id => {
+                    const scenarioData = state.scenarios[id];
+                    addScenario(scenarioData);
+                });
+                // If all scenarios were deleted, start with a fresh one
+                if (Object.keys(state.scenarios).length === 0) {
+                    addScenario();
+                }
+            } else {
+                addScenario();
+            }
+        }
+
+        function addScenario(savedData = null) {
+            scenarioCount++;
+            const template = document.getElementById('scenario-template');
+            const newScenario = template.cloneNode(true);
+            newScenario.id = `scenario-${scenarioCount}`;
+            newScenario.classList.remove('hidden');
+            newScenario.querySelector('.scenario-number').textContent = scenarioCount;
+            document.getElementById('scenarios-container').appendChild(newScenario);
+            
+            // Add event listeners for automatic recalculation
+            newScenario.querySelector('.interest-rate').addEventListener('input', () => calculateById(scenarioCount));
+            newScenario.querySelector('.periods').addEventListener('input', () => calculateById(scenarioCount));
+            newScenario.querySelector('.cashflow-items').addEventListener('click', handleItemAction);
+
+            // Add event listener for the save button in the modal
+            document.getElementById('save-cashflow-btn').addEventListener('click', saveCashflowItem);
+
+            cashflows[scenarioCount] = [];
+
+            if (savedData) {
+                newScenario.querySelector('.interest-rate').value = savedData.interestRate;
+                newScenario.querySelector('.periods').value = savedData.periods;
+                cashflows[scenarioCount] = savedData.items || [];
+                renderCashflowList(scenarioCount);
+                calculateById(scenarioCount);
+            }
+            saveState();
+        }
+
+        document.getElementById('add-scenario-btn').addEventListener('click', addScenario);
+
+        function removeScenario(button) {
+            const scenarioCard = button.closest('.cashflow-card');
+            const scenarioId = parseInt(scenarioCard.id.split('-')[1]);
+            delete cashflows[scenarioId];
+            scenarioCard.remove();
+
+            const resultRow = document.getElementById(`result-row-${scenarioId}`);
+            if(resultRow) resultRow.remove();
+            const diagramDiv = document.getElementById(`diagram-${scenarioId}`);
+            if(diagramDiv) diagramDiv.remove();
+            saveState();
+            redrawAllDiagrams(); // Redraw remaining to adjust scale
+        }
+
+        // --- MODAL LOGIC ---
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('pointer-events-none', 'opacity-0');
+            document.body.classList.add('modal-active');
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.add('pointer-events-none', 'opacity-0');
+            document.body.classList.remove('modal-active');
+        }
+
+        function openInterestModal(button) {
+            const scenarioCard = button.closest('.cashflow-card');
+            activeScenarioId = parseInt(scenarioCard.id.split('-')[1]);
+            document.getElementById('effective-rate-result').textContent = '';
+            document.getElementById('nominal-rate').value = '';
+            document.getElementById('compounding-periods').value = '';
+            openModal('interest-rate-modal');
+        }
+
+        function calculateEffectiveRate() {
+            const r = parseFloat(document.getElementById('nominal-rate').value) / 100;
+            const m = parseInt(document.getElementById('compounding-periods').value);
+            if(isNaN(r) || isNaN(m) || m <= 0) {
+                alert('Please enter valid nominal rate and compounding periods.');
+                return;
+            }
+            const i_eff = Math.pow(1 + r / m, m) - 1;
+            calculatedEffectiveRate = i_eff * 100;
+            document.getElementById('effective-rate-result').textContent = `Effective Rate (i): ${calculatedEffectiveRate.toFixed(4)}%`;
+        }
+
+        function useEffectiveRate() {
+            if (calculatedEffectiveRate !== null && activeScenarioId !== null) {
+                const scenarioCard = document.getElementById(`scenario-${activeScenarioId}`);
+                scenarioCard.querySelector('.interest-rate').value = calculatedEffectiveRate.toFixed(4);
+                calculateById(activeScenarioId);
+                closeModal('interest-rate-modal');
+            } else {
+                alert('Please calculate an effective rate first.');
+            }
+        }
+
+        function openCashflowModal(button, itemIndex = null) {
+            const scenarioCard = button.closest('.cashflow-card');
+            activeScenarioId = parseInt(scenarioCard.id.split('-')[1]);
+            editingItemIndex = itemIndex;
+            const saveBtn = document.getElementById('save-cashflow-btn');
+
+            if (itemIndex !== null) {
+                // --- EDIT MODE ---
+                saveBtn.textContent = 'Update Item';
+                const item = cashflows[activeScenarioId][itemIndex];
+                document.getElementById('modal-cashflow-type').value = item.type;
+                switchCashflowForm(); // Switch to the correct form
+
+                // Pre-fill form
+                if (item.type === 'single') {
+                    document.getElementById('single-amount').value = item.amount;
+                    document.getElementById('single-period').value = item.period;
+                } else if (item.type === 'annuity') {
+                    document.getElementById('annuity-amount').value = item.amount;
+                    document.getElementById('annuity-n').value = item.n;
+                    document.getElementById('annuity-start').value = item.startPeriod;
+                    document.getElementById('annuity-frequency').value = item.frequency;
+                    document.getElementById('annuity-type').value = item.annuityType;
+                } else if (item.type === 'gradient') {
+                    document.getElementById('gradient-amount').value = item.amount;
+                    document.getElementById('gradient-n').value = item.n;
+                    document.getElementById('gradient-start').value = item.startPeriod;
+                } else if (item.type === 'perpetuity') {
+                    document.getElementById('perpetuity-amount').value = item.amount;
+                    document.getElementById('perpetuity-start').value = item.startPeriod;
+                    document.getElementById('perpetuity-frequency').value = item.frequency;
+                }
+            } else {
+                // --- ADD MODE ---
+                saveBtn.textContent = 'Add Item';
+                document.getElementById('modal-cashflow-type').value = 'single';
+                switchCashflowForm(); // Reset to default form
+                // Clear all form fields
+                document.querySelectorAll('#cashflow-modal input[type="number"]').forEach(input => input.value = '');
+                document.getElementById('annuity-frequency').value = 1;
+                document.getElementById('perpetuity-frequency').value = 1;
+            }
+            openModal('cashflow-modal');
+        }
+
+        function switchCashflowForm() {
+            const type = document.getElementById('modal-cashflow-type').value;
+            const forms = ['form-single', 'form-annuity', 'form-gradient', 'form-perpetuity'];
+            forms.forEach(formId => {
+                document.getElementById(formId).classList.add('hidden');
+            });
+            document.getElementById(`form-${type}`).classList.remove('hidden');
+        }
+
+        function saveCashflowItem() {
+            if (activeScenarioId === null) return;
+            
+            const type = document.getElementById('modal-cashflow-type').value;
+            let item = { type };
+            let description = '';
+
+            try {
+                if (type === 'single') {
+                    item.amount = parseFloat(document.getElementById('single-amount').value);
+                    item.period = parseInt(document.getElementById('single-period').value);
+                    if(isNaN(item.amount) || isNaN(item.period)) throw new Error('Invalid input');
+                    description = `Single: ${item.amount} at period ${item.period}`;
+                } else if (type === 'annuity') {
+                    item.amount = parseFloat(document.getElementById('annuity-amount').value);
+                    item.n = parseInt(document.getElementById('annuity-n').value);
+                    item.startPeriod = parseFloat(document.getElementById('annuity-start').value);
+                    item.annuityType = document.getElementById('annuity-type').value;
+                    item.frequency = parseFloat(document.getElementById('annuity-frequency').value) || 1;
+                    if(isNaN(item.amount) || isNaN(item.n) || isNaN(item.startPeriod) || item.frequency <= 0) throw new Error('Invalid input');
+                    
+                    if (item.annuityType === 'due') {
+                        description = `Annuity Due: ${item.amount} for ${item.n} pds, every ${item.frequency} pds, starts at ${item.startPeriod}`;
+                    } else {
+                        description = `Ordinary Annuity: ${item.amount} for ${item.n} pds, every ${item.frequency} pds, 1st pmt at ${item.startPeriod + item.frequency}`;
+                    }
+
+                } else if (type === 'gradient') {
+                    item.base = parseFloat(document.getElementById('gradient-base').value);
+                    item.increment = parseFloat(document.getElementById('gradient-increment').value);
+                    item.n = parseInt(document.getElementById('gradient-n').value);
+                    item.startPeriod = parseFloat(document.getElementById('gradient-start').value);
+                    item.frequency = parseFloat(document.getElementById('gradient-frequency').value) || 1;
+                     if([item.base, item.increment, item.n, item.startPeriod, item.frequency].some(isNaN) || item.frequency <= 0) throw new Error('Invalid input');
+                    description = `Gradient: Base ${item.base}, Incr ${item.increment} for ${item.n} pds, every ${item.frequency} pds`;
+
+                } else if (type === 'perpetuity') {
+                    item.amount = parseFloat(document.getElementById('perpetuity-amount').value);
+                    item.startPeriod = parseFloat(document.getElementById('perpetuity-start').value);
+                    item.frequency = parseFloat(document.getElementById('perpetuity-frequency').value) || 1;
+                    if(isNaN(item.amount) || isNaN(item.startPeriod) || item.frequency <= 0) throw new Error('Invalid input');
+                    description = `Perpetuity: ${item.amount} every ${item.frequency} pds, starts at ${item.startPeriod}`;
+                }
+
+                if (editingItemIndex !== null) {
+                    // Update existing item
+                    cashflows[activeScenarioId][editingItemIndex] = item;
+                } else {
+                    // Add new item
+                    cashflows[activeScenarioId].push(item);
+                }
+
+                renderCashflowList(activeScenarioId);
+
+                closeModal('cashflow-modal');
+                calculateById(activeScenarioId);
+                saveState();
+            } catch (e) {
+                alert('Please fill all fields with valid numbers.');
+            }
+        }
+
+        function renderCashflowList(scenarioId) {
+            const scenarioCard = document.getElementById(`scenario-${scenarioId}`);
+            const itemList = scenarioCard.querySelector('.cashflow-items');
+            itemList.innerHTML = ''; // Clear the list
+
+            cashflows[scenarioId].forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center text-sm py-1';
+                li.dataset.index = index;
+
+                // Recreate description
+                let description = '';
+                if (item.type === 'single') description = `Single: ${item.amount} at period ${item.period}`;
+                else if (item.type === 'annuity') description = `${item.annuityType === 'due' ? 'Annuity Due' : 'Ord. Annuity'}: ${item.amount} for ${item.n} pds, every ${item.frequency} pds`;
+                else if (item.type === 'gradient') description = `Gradient: Base ${item.base}, Incr ${item.increment} for ${item.n} pds, every ${item.frequency} pds`;
+                else if (item.type === 'perpetuity') description = `Perpetuity: ${item.amount} every ${item.frequency} pds, starts at ${item.startPeriod}`;
+
+                li.innerHTML = `
+                    <span>${description}</span>
+                    <div class="flex items-center space-x-2">
+                        <button class="edit-item-btn text-blue-600 hover:text-blue-800 text-xs font-semibold">EDIT</button>
+                        <button class="remove-item-btn text-red-500 hover:text-red-700 font-bold">×</button>
+                    </div>
+                `;
+                itemList.appendChild(li);
+            });
+        }
+
+        function handleItemAction(event) {
+            const target = event.target;
+            const li = target.closest('li');
+            if (!li) return;
+            const itemIndex = parseInt(li.dataset.index);
+            const scenarioId = parseInt(li.closest('.cashflow-card').id.split('-')[1]);
+            if (target.classList.contains('edit-item-btn')) {
+                openCashflowModal(target.closest('.cashflow-card').querySelector('button'), itemIndex);
+            } else if (target.classList.contains('remove-item-btn')) {
+                cashflows[scenarioId].splice(itemIndex, 1);
+                renderCashflowList(scenarioId);
+                calculateById(scenarioId);
+                saveState();
+            }
+        }
+        
+        function calculateById(scenarioId) {
+            const scenarioCard = document.getElementById(`scenario-${scenarioId}`);
+            if (!scenarioCard) return;
+
+            const i = parseFloat(scenarioCard.querySelector('.interest-rate').value) / 100;
+            const n_total = parseInt(scenarioCard.querySelector('.periods').value);
+
+            if (isNaN(i) || isNaN(n_total)) {
+                // Silently return, as user might be in the middle of typing.
+                return;
+            }
+
+            let presentWorth = 0;
+
+            cashflows[scenarioId].forEach(item => {
+                const { type, amount } = item;
+                
+                let p_val = 0;
+                
+                // P/F Factor
+                const pf_factor = (i, n) => Math.pow(1 + i, -n);
+                // P/A Factor
+                const pa_factor = (i, n) => (Math.pow(1 + i, n) - 1) / (i * Math.pow(1 + i, n));
+                
+                if (type === 'single') {
+                    p_val = amount * pf_factor(i, item.period);
+                } else if (type === 'annuity') {
+                    const k = item.frequency;
+                    if (k === 1) { // Standard calculation
+                        let p_prime = amount * pa_factor(i, item.n);
+                        if (item.annuityType === 'due') {
+                            p_val = p_prime * (1 + i) * pf_factor(i, item.startPeriod);
+                        } else { // Ordinary
+                            p_val = p_prime * pf_factor(i, item.startPeriod);
+                        }
+                    } else { // Custom frequency calculation
+                        const i_k = Math.pow(1 + i, k) - 1; // Effective rate for k periods
+                        let p_prime = amount * pa_factor(i_k, item.n);
+                        if (item.annuityType === 'due') {
+                            // P' is at the time of the first payment (startPeriod)
+                            p_val = p_prime * pf_factor(i, item.startPeriod);
+                        } else { // Ordinary
+                            // P' is k periods before the first payment (startPeriod + k)
+                            p_val = p_prime * pf_factor(i, item.startPeriod);
+                        }
+                    }
+                } else if (type === 'gradient') {
+                    // Most robust way is to sum the PV of each individual payment
+                    for (let j = 0; j < item.n; j++) {
+                        const currentPeriod = item.startPeriod + (j * item.frequency);
+                        const currentAmount = item.base + (j * item.increment);
+                        p_val += currentAmount * pf_factor(i, currentPeriod);
+                    }
+
+                } else if (type === 'perpetuity') {
+                    const k = item.frequency;
+                    const i_k = Math.pow(1 + i, k) - 1;
+                    const p_prime = amount / i_k; // P' is one 'k' period before the first payment
+                    p_val = p_prime * pf_factor(i, item.startPeriod);
+                }
+                presentWorth += p_val;
+            });
+
+            const futureWorth = presentWorth * Math.pow(1 + i, n_total);
+
+            displayResults(scenarioId, presentWorth, futureWorth);
+            redrawAllDiagrams();
+            saveState();
+        }
+        
+        // --- DISPLAY & DRAWING (MODIFIED) ---
+
+        function redrawAllDiagrams() {
+            const calculatedScenarios = Object.keys(cashflows).filter(id => document.getElementById(`result-row-${id}`));
+            if (calculatedScenarios.length === 0) return;
+
+            const max_n = Math.max(...calculatedScenarios.map(id => parseInt(document.getElementById(`scenario-${id}`).querySelector('.periods').value)));
+
+            calculatedScenarios.forEach(id => drawDiagram(id, cashflows[id], max_n));
+        }
+
+        function displayResults(scenarioId, pw, fw) {
+            const tableBody = document.getElementById('results-table-body');
+            let resultRow = document.getElementById(`result-row-${scenarioId}`);
+            
+            if (!resultRow) {
+                resultRow = document.createElement('tr');
+                resultRow.id = `result-row-${scenarioId}`;
+                tableBody.appendChild(resultRow);
+            }
+
+            resultRow.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Scenario ${scenarioId}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${pw.toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fw.toFixed(2)}</td>
+            `;
+        }
+
+        function drawDiagram(scenarioId, data, n_total) {
+            let diagramsContainer = document.getElementById('diagrams-container');
+            let diagramDiv = document.getElementById(`diagram-${scenarioId}`);
+            
+            if (!diagramDiv) {
+                diagramDiv = document.createElement('div');
+                diagramDiv.id = `diagram-${scenarioId}`;
+                diagramDiv.className = 'text-center';
+                diagramsContainer.appendChild(diagramDiv);
+            }
+            diagramDiv.innerHTML = ''; // Clear previous diagram
+
+            const containerWidth = diagramsContainer.getBoundingClientRect().width;
+            const margin = {top: 20, right: 20, bottom: 40, left: 40},
+                width = containerWidth - margin.left - margin.right,
+                height = 200;
+
+            const svg = d3.select(diagramDiv)
+              .append("svg")
+                .attr("data-n-total", n_total) // Store n_total for the ruler
+                .attr("width", "100%") // Make SVG responsive
+                .attr("height", height + margin.top + margin.bottom)
+              .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+            
+            const x = d3.scaleLinear()
+                .domain([0, n_total])
+                .range([ 0, width ]);
+
+            // --- Vertical Scaling for Arrows ---
+            const allFlows = [];
+            data.forEach(item => {
+                const { type, amount } = item;
+                if (type === 'single') { allFlows.push(amount); }
+                else if (type === 'annuity') { for (let k = 0; k < item.n; k++) allFlows.push(amount); }
+                else if (type === 'gradient') {
+                    for (let j = 0; j < item.n; j++) {
+                        allFlows.push(item.base + (j * item.increment));
+                    }
+                }
+                else if (type === 'perpetuity') { for (let n = item.startPeriod; n <= n_total + 1e-9; n += (item.frequency || 1)) allFlows.push(amount); }
+            });
+
+            const maxAbsAmount = d3.max(allFlows, d => Math.abs(d)) || 1;
+            const yScale = d3.scaleLinear()
+                .domain([0, maxAbsAmount])
+                .range([0, height / 2 - 20]); // Max arrow height is half the diagram height minus some padding
+
+            svg.append("g")
+                .attr("transform", `translate(0, ${height/2})`)
+                .call(d3.axisBottom(x).ticks(n_total).tickFormat(d3.format("d")));
+
+            svg.append("line").attr("x1", x(0)).attr("y1", height / 2).attr("x2", x(n_total)).attr("y2", height / 2).attr("stroke", "black").attr("stroke-width", 2);
+
+            data.forEach(item => {
+                const { type, amount } = item;
+                
+                if (type === 'single') {
+                    drawArrow(svg, x(item.period), height / 2, amount, yScale);
+                } else if (type === 'annuity') {
+                    for (let k = 0; k < item.n; k++) {
+                        const freq = item.frequency || 1;
+                        const period = item.annuityType === 'due' ? item.startPeriod + (k * freq) : item.startPeriod + ((k + 1) * freq);
+                        if(period <= n_total) drawArrow(svg, x(period), height/2, amount, yScale);
+                    }
+                } else if (type === 'gradient') {
+                    for (let j = 0; j < item.n; j++) {
+                        const period = item.startPeriod + (j * item.frequency);
+                        const currentAmount = item.base + (j * item.increment);
+                        if(period <= n_total) drawArrow(svg, x(period), height/2, currentAmount, yScale);
+                    }
+                } else if (type === 'perpetuity') {
+                    for(let n = item.startPeriod; n <= n_total + 1e-9; n += (item.frequency || 1)) { // Add tolerance for float issues
+                        drawArrow(svg, x(n), height/2, amount, yScale);
+                    }
+                    svg.append("text").attr("x", x(n_total) + 15).attr("y", height/2 + 5).text("...∞").style("font-size", "14px");
+                }
+            });
+
+            const title = document.createElement('h3');
+            title.className = "text-lg font-bold text-gray-800 mt-2";
+            title.textContent = `Scenario ${scenarioId}`;
+            diagramDiv.appendChild(title);
+        }
+
+        function drawArrow(svg, x_pos, y_pos, amount, yScale) {
+             if(amount === 0) return;
+             const isUp = amount > 0;
+             const arrowLength = yScale(Math.abs(amount));
+             const startY = y_pos;
+             const endY = isUp ? y_pos - arrowLength : y_pos + arrowLength;
+
+             svg.append("line").attr("x1", x_pos).attr("y1", startY).attr("x2", x_pos).attr("y2", endY).attr("stroke", isUp ? "green" : "red").attr("stroke-width", 2).attr("marker-end", isUp ? "url(#arrowhead-up)" : "url(#arrowhead-down)");
+             svg.append("text").attr("x", x_pos).attr("y", endY + (isUp ? -10 : 20)).text(Math.abs(amount)).style("font-size", "10px").attr("text-anchor", "middle");
+        }
+        
+        const defs = d3.select("body").append("svg").style("position", "absolute").style("width", 0).style("height", 0).append("defs");
+        defs.append("marker").attr("id", "arrowhead-up").attr("viewBox", "0 -5 10 10").attr("refX", 0).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "green");
+        defs.append("marker").attr("id", "arrowhead-down").attr("viewBox", "0 -5 10 10").attr("refX", 0).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,5L10,0L0,-5").attr("fill", "red");
+
+        // --- RULER LOGIC ---
+        const diagramsContainerEl = document.getElementById('diagrams-container');
+        const ruler = document.getElementById('ruler');
+
+        diagramsContainerEl.addEventListener('mousemove', (e) => {
+            const firstDiagramSVG = diagramsContainerEl.querySelector('svg');
+            if (!firstDiagramSVG) return;
+
+            const rect = diagramsContainerEl.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+
+            ruler.style.left = `${x}px`;
+            ruler.classList.remove('hidden');
+        });
+        diagramsContainerEl.addEventListener('mouseleave', () => ruler.classList.add('hidden'));
+    </script>
+
+    <footer class="bg-white border-t border-gray-200 mt-8">
+        <div class="container mx-auto p-4 text-center text-sm text-gray-600">
+            © Daniel Pollentes
+        </div>
+    </footer>
+</body>
+</html>
