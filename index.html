@@ -567,24 +567,10 @@
                 if (type === 'single') {
                     p_val = amount * pf_factor(i, item.period);
                 } else if (type === 'annuity') {
-                    const k = item.frequency;
-                    if (k === 1) { // Standard calculation
-                        let p_prime = amount * pa_factor(i, item.n);
-                        if (item.annuityType === 'due') {
-                            p_val = p_prime * (1 + i) * pf_factor(i, item.startPeriod);
-                        } else { // Ordinary
-                            p_val = p_prime * pf_factor(i, item.startPeriod);
-                        }
-                    } else { // Custom frequency calculation
-                        const i_k = Math.pow(1 + i, k) - 1; // Effective rate for k periods
-                        let p_prime = amount * pa_factor(i_k, item.n);
-                        if (item.annuityType === 'due') {
-                            // P' is at the time of the first payment (startPeriod)
-                            p_val = p_prime * pf_factor(i, item.startPeriod);
-                        } else { // Ordinary
-                            // P' is k periods before the first payment (startPeriod + k)
-                            p_val = p_prime * pf_factor(i, item.startPeriod);
-                        }
+                    // Robust method: Sum the PV of each individual payment
+                    for (let j = 0; j < item.n; j++) {
+                        const currentPeriod = item.startPeriod + (j * item.frequency);
+                        p_val += amount * pf_factor(i, currentPeriod);
                     }
                 } else if (type === 'gradient') {
                     // Most robust way is to sum the PV of each individual payment
@@ -593,13 +579,12 @@
                         const currentAmount = item.base + (j * item.increment);
                         p_val += currentAmount * pf_factor(i, currentPeriod);
                     }
-
                 } else if (type === 'perpetuity') {
-                    const k = item.frequency;
-                    const i_k = Math.pow(1 + i, k) - 1;
-                    const p_prime = amount / i_k; // P' is one 'k' period before the first payment
-                    const p_prime_period = item.startPeriod - k;
-                    p_val = p_prime * pf_factor(i, p_prime_period);
+                    // Robust method: Sum the PV of each individual payment up to the total number of periods
+                    for (let j = 0; (item.startPeriod + (j * item.frequency)) <= n_total; j++) {
+                        const currentPeriod = item.startPeriod + (j * item.frequency);
+                        p_val += amount * pf_factor(i, currentPeriod);
+                    }
                 }
                 presentWorth += p_val;
             });
@@ -775,24 +760,15 @@
                     p_val = item.amount * pf_factor(i, item.period);
                     stepHtml += `${item.amount} * (P/F, ${i*100}%, ${item.period}) = ${p_val.toFixed(2)}`;
                 } else if (item.type === 'annuity') {
-                    const k = item.frequency;
-                    if (k === 1) {
-                        let p_prime = item.amount * pa_factor(i, item.n);
-                        stepHtml += `P' = ${item.amount} * (P/A, ${i*100}%, ${item.n}) = ${p_prime.toFixed(2)}. `;
-                        if (item.annuityType === 'due') {
-                            p_val = p_prime * (1 + i) * pf_factor(i, item.startPeriod);
-                            stepHtml += `P = P' * (F/P, ${i*100}%, 1) * (P/F, ${i*100}%, ${item.startPeriod}) = ${p_val.toFixed(2)}`;
-                        } else {
-                            p_val = p_prime * pf_factor(i, item.startPeriod);
-                            stepHtml += `P = P' * (P/F, ${i*100}%, ${item.startPeriod}) = ${p_val.toFixed(2)}`;
-                        }
-                    } else {
-                        const i_k = Math.pow(1 + i, k) - 1;
-                        let p_prime = item.amount * pa_factor(i_k, item.n);
-                        stepHtml += `i_eff_k = ${(i_k*100).toFixed(2)}%. P' = ${item.amount} * (P/A, i_eff_k, ${item.n}) = ${p_prime.toFixed(2)}. `;
-                        p_val = p_prime * pf_factor(i, item.startPeriod);
-                        stepHtml += `P = P' * (P/F, ${i*100}%, ${item.startPeriod}) = ${p_val.toFixed(2)}`;
+                    stepHtml += `Sum of ${item.n} individual payments:<ul>`;
+                    for (let j = 0; j < item.n; j++) {
+                        const currentPeriod = item.startPeriod + (j * item.frequency);
+                        const currentAmount = item.amount;
+                        const pv_j = currentAmount * pf_factor(i, currentPeriod);
+                        p_val += pv_j;
+                        stepHtml += `<li class="ml-4">${currentAmount} at period ${currentPeriod} -> PV = ${pv_j.toFixed(2)}</li>`;
                     }
+                    stepHtml += `</ul>Sub-total = ${p_val.toFixed(2)}`;
                 } else if (item.type === 'gradient') {
                     stepHtml += `Sum of individual payments:<ul>`;
                     for (let j = 0; j < item.n; j++) {
@@ -804,12 +780,15 @@
                     }
                     stepHtml += `</ul>Sub-total = ${p_val.toFixed(2)}`;
                 } else if (item.type === 'perpetuity') {
-                    const k = item.frequency;
-                    const i_k = Math.pow(1 + i, k) - 1;
-                    const p_prime = item.amount / i_k;
-                    const p_prime_period = item.startPeriod - k;
-                    p_val = p_prime * pf_factor(i, p_prime_period);
-                    stepHtml += `i_eff_k = ${(i_k*100).toFixed(2)}%. P' at period ${p_prime_period} = ${item.amount} / i_eff_k = ${p_prime.toFixed(2)}. P = P' * (P/F, ${i*100}%, ${p_prime_period}) = ${p_val.toFixed(2)}`;
+                    stepHtml += `Sum of individual payments (within n=${n_total}):<ul>`;
+                    for (let j = 0; (item.startPeriod + (j * item.frequency)) <= n_total; j++) {
+                        const currentPeriod = item.startPeriod + (j * item.frequency);
+                        const currentAmount = item.amount;
+                        const pv_j = currentAmount * pf_factor(i, currentPeriod);
+                        p_val += pv_j;
+                        stepHtml += `<li class="ml-4">${currentAmount} at period ${currentPeriod} -> PV = ${pv_j.toFixed(2)}</li>`;
+                    }
+                    stepHtml += `</ul>Sub-total = ${p_val.toFixed(2)}`;
                 }
                 totalPresentWorth += p_val;
                 computationHtml += `${stepHtml}</li>`;
