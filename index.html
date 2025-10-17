@@ -182,36 +182,66 @@
 
                     <!-- Single Payment Form -->
                     <div id="form-single" class="space-y-4">
-                        <input type="number" id="single-amount" placeholder="Amount" class="w-full p-2 border border-gray-300 rounded-md">
-                        <input type="number" id="single-period" placeholder="Period (n)" class="w-full p-2 border border-gray-300 rounded-md">
+                        <div>
+                            <label for="single-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                            <input type="number" id="single-amount" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="single-period" class="block text-sm font-medium text-gray-700">Period (n)</label>
+                            <input type="number" id="single-period" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        </div>
                     </div>
 
                     <!-- Annuity Form -->
                     <div id="form-annuity" class="hidden space-y-4">
-                         <input type="number" id="annuity-amount" placeholder="Amount (A)" class="w-full p-2 border border-gray-300 rounded-md">
-                         <input type="number" id="annuity-n" placeholder="Number of Payments (n)" class="w-full p-2 border border-gray-300 rounded-md">
-                         <input type="number" step="any" id="annuity-start" placeholder="First Payment Period" class="w-full p-2 border border-gray-300 rounded-md">
-                         <input type="number" step="any" id="annuity-frequency" placeholder="Payment every X periods" class="w-full p-2 border border-gray-300 rounded-md" value="1">
-                         <select id="annuity-type" class="w-full p-2 border border-gray-300 rounded-md">
-                             <option value="ordinary">Ordinary Annuity</option>
-                             <option value="due">Annuity Due</option>
-                         </select>
+                        <div>
+                            <label for="annuity-amount" class="block text-sm font-medium text-gray-700">Amount (A)</label>
+                            <input type="number" id="annuity-amount" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="annuity-n" class="block text-sm font-medium text-gray-700">Number of Payments (n)</label>
+                            <input type="number" id="annuity-n" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="annuity-start" class="block text-sm font-medium text-gray-700">First Payment Period</label>
+                            <input type="number" step="any" id="annuity-start" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="annuity-frequency" class="block text-sm font-medium text-gray-700">Payment every X periods</label>
+                            <input type="number" step="any" id="annuity-frequency" class="w-full mt-1 p-2 border border-gray-300 rounded-md" value="1">
+                        </div>
+                        <div>
+                            <label for="annuity-type" class="block text-sm font-medium text-gray-700">Annuity Type</label>
+                            <select id="annuity-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                                <option value="ordinary">Ordinary Annuity</option>
+                                <option value="due">Annuity Due</option>
+                            </select>
+                        </div>
                     </div>
                     
                     <!-- Gradient Form -->
                     <div id="form-gradient" class="hidden space-y-4">
-                        <input type="number" id="gradient-base" placeholder="Base Amount (A1)" class="w-full p-2 border border-gray-300 rounded-md">
-                        <input type="number" id="gradient-increment" placeholder="Increment (G)" class="w-full p-2 border border-gray-300 rounded-md">
-                        <input type="number" id="gradient-n" placeholder="Number of Periods (n)" class="w-full p-2 border border-gray-300 rounded-md">
-                        <input type="number" step="any" id="gradient-start" placeholder="First Payment Period" class="w-full p-2 border border-gray-300 rounded-md">
-                        <input type="number" step="any" id="gradient-frequency" placeholder="Payment every X periods" class="w-full p-2 border border-gray-300 rounded-md" value="1">
+                        <div><label for="gradient-base" class="block text-sm font-medium text-gray-700">Base Amount (A₁)</label><input type="number" id="gradient-base" class="w-full mt-1 p-2 border border-gray-300 rounded-md"></div>
+                        <div><label for="gradient-increment" class="block text-sm font-medium text-gray-700">Increment (G)</label><input type="number" id="gradient-increment" class="w-full mt-1 p-2 border border-gray-300 rounded-md"></div>
+                        <div><label for="gradient-n" class="block text-sm font-medium text-gray-700">Number of Periods (n)</label><input type="number" id="gradient-n" class="w-full mt-1 p-2 border border-gray-300 rounded-md"></div>
+                        <div><label for="gradient-start" class="block text-sm font-medium text-gray-700">First Payment Period</label><input type="number" step="any" id="gradient-start" class="w-full mt-1 p-2 border border-gray-300 rounded-md"></div>
+                        <div><label for="gradient-frequency" class="block text-sm font-medium text-gray-700">Payment every X periods</label><input type="number" step="any" id="gradient-frequency" class="w-full mt-1 p-2 border border-gray-300 rounded-md" value="1"></div>
                     </div>
 
                     <!-- Perpetuity Form -->
                     <div id="form-perpetuity" class="hidden space-y-4">
-                         <input type="number" id="perpetuity-amount" placeholder="Amount (A)" class="w-full p-2 border border-gray-300 rounded-md">
-                         <input type="number" step="any" id="perpetuity-start" placeholder="First Payment Period" class="w-full p-2 border border-gray-300 rounded-md">
-                         <input type="number" step="any" id="perpetuity-frequency" placeholder="Payment every X periods" class="w-full p-2 border border-gray-300 rounded-md" value="1">
+                        <div>
+                            <label for="perpetuity-amount" class="block text-sm font-medium text-gray-700">Amount (A)</label>
+                            <input type="number" id="perpetuity-amount" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="perpetuity-start" class="block text-sm font-medium text-gray-700">First Payment Period</label>
+                            <input type="number" step="any" id="perpetuity-start" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="perpetuity-frequency" class="block text-sm font-medium text-gray-700">Payment every X periods</label>
+                            <input type="number" step="any" id="perpetuity-frequency" class="w-full mt-1 p-2 border border-gray-300 rounded-md" value="1">
+                        </div>
                     </div>
 
                 </div>
