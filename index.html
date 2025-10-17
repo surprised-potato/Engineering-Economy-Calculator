@@ -606,8 +606,14 @@
                         }
                     }
                 } else if (type === 'perpetuity') {
-                    const p_at_start = amount / i;
-                    p_val = p_at_start * pf_factor(i, item.startPeriod - 1); // Correctly discount from k-1
+                    if (item.frequency === 1) {
+                        const p_at_start = amount / i;
+                        p_val = p_at_start * pf_factor(i, item.startPeriod - 1);
+                    } else {
+                        const i_eff_freq = Math.pow(1 + i, item.frequency) - 1;
+                        const p_at_zero = amount / i_eff_freq;
+                        p_val = p_at_zero;
+                    }
                 }
                 presentWorth += p_val;
             });
@@ -837,8 +843,14 @@
                 }
             } else if (type === 'perpetuity') {
                  description = `Perpetuity: ${item.amount} every ${item.frequency} pds, starts at ${item.startPeriod}`;
-                 const p_at_start_minus_1 = amount / i;
-                 p_val = p_at_start_minus_1 * pf_factor(i, item.startPeriod - 1); // Correctly discount from k-1
+                 if (item.frequency === 1) {
+                    const p_at_start_minus_1 = amount / i;
+                    p_val = p_at_start_minus_1 * pf_factor(i, item.startPeriod - 1);
+                 } else {
+                    const i_eff_freq = Math.pow(1 + i, item.frequency) - 1;
+                    const p_at_zero = amount / i_eff_freq;
+                    p_val = p_at_zero;
+                 }
             }
             return { p_val, description };
         }
@@ -880,7 +892,12 @@
                     {type: 'annuity', amount: 100, n: 10, startPeriod: 1, frequency: 1, annuityType: 'ordinary'},
                     {type: 'gradient', base: 0, increment: 20, n: 5, startPeriod: 11, frequency: 1},
                     {type: 'single', amount: 500, period: 20}
-                ], expected: 61.75 }
+                ], expected: 61.75 },
+                { name: "Complex Perpetuity", i: 7.46, n: 100, items: [
+                    {type: 'single', amount: 200, period: 0},
+                    {type: 'perpetuity', amount: 2, startPeriod: 1, frequency: 1},
+                    {type: 'perpetuity', amount: 98, startPeriod: 50, frequency: 50}
+                ], expected: 229.57 }
             ];
 
             const failures = [];
