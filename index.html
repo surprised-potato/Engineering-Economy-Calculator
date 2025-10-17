@@ -598,7 +598,8 @@
                     const k = item.frequency;
                     const i_k = Math.pow(1 + i, k) - 1;
                     const p_prime = amount / i_k; // P' is one 'k' period before the first payment
-                    p_val = p_prime * pf_factor(i, item.startPeriod);
+                    const p_prime_period = item.startPeriod - k;
+                    p_val = p_prime * pf_factor(i, p_prime_period);
                 }
                 presentWorth += p_val;
             });
@@ -806,8 +807,9 @@
                     const k = item.frequency;
                     const i_k = Math.pow(1 + i, k) - 1;
                     const p_prime = item.amount / i_k;
-                    p_val = p_prime * pf_factor(i, item.startPeriod);
-                    stepHtml += `i_eff_k = ${(i_k*100).toFixed(2)}%. P' = ${item.amount} / i_eff_k = ${p_prime.toFixed(2)}. P = P' * (P/F, ${i*100}%, ${item.startPeriod}) = ${p_val.toFixed(2)}`;
+                    const p_prime_period = item.startPeriod - k;
+                    p_val = p_prime * pf_factor(i, p_prime_period);
+                    stepHtml += `i_eff_k = ${(i_k*100).toFixed(2)}%. P' at period ${p_prime_period} = ${item.amount} / i_eff_k = ${p_prime.toFixed(2)}. P = P' * (P/F, ${i*100}%, ${p_prime_period}) = ${p_val.toFixed(2)}`;
                 }
                 totalPresentWorth += p_val;
                 computationHtml += `${stepHtml}</li>`;
