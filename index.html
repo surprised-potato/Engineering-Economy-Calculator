@@ -670,31 +670,11 @@
             calculatedScenarios.forEach(id => drawDiagram(id, cashflows[id], max_n));
         }
 
-        function displayResults(scenarioId, pw, fw) {
-            const scenarioCard = document.getElementById(`scenario-${scenarioId}`);
-            const scenarioName = scenarioCard.querySelector('.scenario-name').value || `Scenario ${scenarioId}`;
-            const tableBody = document.getElementById('results-table-body');
-            let resultRow = document.getElementById(`result-row-${scenarioId}`);
-            
-            if (!resultRow) {
-                resultRow = document.createElement('tr');
-                resultRow.id = `result-row-${scenarioId}`;
-                tableBody.appendChild(resultRow);
-            }
-
-            resultRow.innerHTML = `
-                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${scenarioName}</td>
-                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">${pw.toFixed(2)}</td>
-                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fw.toFixed(2)}</td>
-                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium"><button onclick="showComputation(${scenarioId})" class="text-indigo-600 hover:text-indigo-900">Show</button></td>
-            `;
-        }
-
         function drawDiagram(scenarioId, data, n_total) {
             let diagramsContainer = document.getElementById('diagrams-container');
             const scenarioName = document.getElementById(`scenario-${scenarioId}`).querySelector('.scenario-name').value;
             let diagramDiv = document.getElementById(`diagram-${scenarioId}`);
-            
+                        
             if (!diagramDiv) {
                 diagramDiv = document.createElement('div');
                 diagramDiv.id = `diagram-${scenarioId}`;
@@ -702,12 +682,10 @@
                 diagramsContainer.appendChild(diagramDiv);
             }
             diagramDiv.innerHTML = ''; // Clear previous diagram
-
             const containerWidth = diagramsContainer.getBoundingClientRect().width;
             const margin = {top: 20, right: 20, bottom: 40, left: 40},
                 width = Math.max(containerWidth, n_total * 50) - margin.left - margin.right, // Ensure minimum width
                 height = 200;
-
             const svg = d3.select(diagramDiv)
               .append("svg")
                 .attr("data-n-total", n_total)
@@ -719,7 +697,6 @@
             const x = d3.scaleLinear()
                 .domain([-0.5, n_total + 0.5])
                 .range([ 0, width ]);
-
             // --- Vertical Scaling for Arrows ---
             const allFlows = [];
             data.forEach(item => {
@@ -733,29 +710,33 @@
                 }
                 else if (type === 'perpetuity') { for (let n = item.startPeriod; n <= n_total + 1e-9; n += (item.frequency || 1)) allFlows.push(amount); }
             });
-
             const maxAbsAmount = d3.max(allFlows, d => Math.abs(d)) || 1;
             const yScale = d3.scaleLinear()
                 .domain([0, maxAbsAmount])
                 .range([0, height / 2 - 20]); 
-
+             
             svg.append("g")
                 .attr("transform", `translate(0, ${height/2})`)
                 .call(d3.axisBottom(x).ticks(n_total).tickFormat(d3.format("d")));
-
             svg.append("line").attr("x1", x(0)).attr("y1", height / 2).attr("x2", x(n_total)).attr("y2", height / 2).attr("stroke", "black").attr("stroke-width", 2);
-
             data.forEach(item => {
                 const { type, amount } = item;
-                
+                                
                 if (type === 'single') {
                     drawArrow(svg, x(item.period), height / 2, amount, yScale);
                 } else if (type === 'annuity') {
                     for (let k = 0; k < item.n; k++) {
-                        let period = item.startPeriod + (k * item.frequency);
+                        let period;
+                        // --- START OF FIX ---
                         if (item.annuityType === 'due') {
+                            // Annuity Due payments are 1 period *earlier* than ordinary
+                            // This matches the calculation logic which multiplies PV by (1+i)
+                            period = (item.startPeriod - 1) + (k * item.frequency);
+                        } else {
                             period = item.startPeriod + (k * item.frequency);
                         }
+                        // --- END OF FIX ---
+
                         if(period <= n_total) drawArrow(svg, x(period), height/2, amount, yScale);
                     }
                 } else if (type === 'gradient') {
@@ -766,12 +747,11 @@
                     }
                 } else if (type === 'perpetuity') {
                     for(let n = item.startPeriod; n <= n_total + 1e-9; n += (item.frequency || 1)) { 
-                        drawArrow(svg, x(n), height/2, amount, yScale);
+                         drawArrow(svg, x(n), height/2, amount, yScale);
                     }
                     svg.append("text").attr("x", x(n_total) + 15).attr("y", height/2 + 5).text("...∞").style("font-size", "14px");
                 }
             });
-
             const title = document.createElement('h3');
             title.className = "text-lg font-bold text-gray-800 mt-2";
             title.textContent = scenarioName;
